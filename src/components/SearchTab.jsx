@@ -37,10 +37,10 @@ export default function SearchTab({ cards }) {
       const count = await db.cards.count()
       const lq = (query || '').toLowerCase().trim()
 
-      // Sample first 3 cards to see what's actually stored
+      // Always show a sample of what's in DB
       const sample = await db.cards.limit(3).toArray()
-      const sampleInfo = sample.map(c => `[id:${c.id}|num:${c.cardNumber}|name:${c.name?.slice(0,10)}]`).join(' ')
-      setDebugInfo(`DB: ${count} | Sample: ${sampleInfo} | Query: "${lq}"`)
+      const sampleInfo = sample.map(c => `${c.cardNumber}`).join(', ')
+      setDebugInfo(`DB: ${count} | Sample IDs: ${sampleInfo} | Query: "${lq}"`)
 
       if (count === 0) {
         setDebugInfo('❌ DB empty — go to Settings → Clear Cache & Re-sync')
@@ -68,7 +68,9 @@ export default function SearchTab({ cards }) {
       if (filts.minPower !== '') collection = collection.filter(c => c.power != null && c.power >= Number(filts.minPower))
       if (filts.maxPower !== '') collection = collection.filter(c => c.power != null && c.power <= Number(filts.maxPower))
 
-      setDebugInfo(`DB: ${count} cards | Found: ${collection.length} | Query: "${lq}"`)
+      const firstResult = collection[0]
+      const firstInfo = firstResult ? ` | First: ${firstResult.cardNumber} "${firstResult.name}"` : ''
+      setDebugInfo(`DB: ${count} | Sample IDs: ${sampleInfo} | Found: ${collection.length}${firstInfo} | Query: "${lq}"`)
       setTotalMatches(collection.length)
       setResults(collection.slice(0, pageNum * PAGE_SIZE))
     } catch (e) {
