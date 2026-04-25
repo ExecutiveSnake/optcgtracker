@@ -33,19 +33,18 @@ export default function App() {
         return
       }
       // Fresh fetch
-      setLoadMsg('Fetching card database...')
-      const eps = ['/api/allSetCards/', '/api/allSTCards/', '/api/allPromoCards/', '/api/allDonCards/']
+      setLoadMsg('Fetching card database from apitcg.com...')
+      const eps = ['/api/one-piece/cards?']
       let all = []
       for (const ep of eps) {
         try {
-          const name = ep.replace('/api/', '').replace('/', '')
-          setLoadMsg(`Loading ${name}...`)
+          setLoadMsg('Loading One Piece cards...')
           const raw = await fetchAllPages(ep, (loaded, count) => {
-            setLoadMsg(`${name}: ${loaded}${count ? '/' + count : ''} cards...`)
+            setLoadMsg(`Loading: ${loaded}${count ? '/' + count : ''} cards...`)
           })
-          console.log(`[OPTCG] ${name} raw sample:`, raw[0])
+          console.log(`[OPTCG] apitcg raw sample:`, raw[0])
           all = [...all, ...raw.map(normalizeCard)]
-          setLoadMsg(`Loaded ${all.length} cards so far...`)
+          setLoadMsg(`Loaded ${all.length} cards...`)
         } catch (e) { console.error('Load error:', ep, e) }
       }
       if (all.length > 0) {

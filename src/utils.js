@@ -1,4 +1,4 @@
-export const API_BASE = 'https://optcgapi.com'
+export const API_BASE = 'https://apitcg.com'
 export const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG']
 export const DECK_TAGS = ['Meta', 'Casual', 'Work In Progress', 'Tournament', 'Retired']
 export const BLOCK1 = ['OP01', 'ST01', 'ST02', 'ST03', 'ST04']
@@ -17,26 +17,27 @@ export const getColorHex = (color) => {
 }
 
 export const normalizeCard = (raw) => {
-  const cardNum = (raw.card_number || raw.cardNumber || '').trim()
-  const setId = (raw.set_id || raw.set || '').trim()
-  const rawId = (raw.card_id || raw.id || '').toString().trim()
-  const id = (rawId && rawId !== '0' && rawId !== 'undefined')
-    ? rawId
-    : (setId && cardNum) ? `${setId}-${cardNum}`
-    : cardNum || rawId || Math.random().toString(36).slice(2)
+  // apitcg.com format: id/code = "OP03-070", family = affiliation, ability = effect
+  const cardNum = (raw.code || raw.id || raw.card_number || raw.cardNumber || '').trim()
+  const setName = raw.set?.name || raw.set_id || raw.set || ''
+  // Extract set ID from card number prefix e.g. "OP03" from "OP03-070"
+  const setId = cardNum.includes('-') ? cardNum.split('-')[0] : setName
+
   return {
-    id,
+    id: cardNum || Math.random().toString(36).slice(2),
     name: raw.name || raw.card_name || '',
     cardNumber: cardNum,
     set: setId,
+    setName: setName,
     color: (raw.color || raw.colors || '').toLowerCase(),
-    type: raw.card_type || raw.type || '',
+    type: raw.type || raw.card_type || '',
     cost: raw.cost != null ? Number(raw.cost) : null,
     power: raw.power != null ? Number(raw.power) : null,
-    counter: raw.counter != null ? raw.counter : null,
-    affiliation: raw.attribute || raw.affiliation || raw.group_tag || raw.tag || '',
-    effect: raw.effect || raw.card_effect || raw.text || '',
-    imageUrl: raw.image_url || raw.card_image || raw.image || null,
+    counter: (raw.counter && raw.counter !== '-') ? raw.counter : null,
+    affiliation: raw.family || raw.attribute || raw.affiliation || raw.group_tag || '',
+    effect: raw.ability || raw.effect || raw.card_effect || '',
+    trigger: raw.trigger || '',
+    imageUrl: raw.images?.large || raw.images?.small || raw.image_url || null,
     rarity: raw.rarity || '',
     life: raw.life != null ? raw.life : null,
   }
@@ -52,18 +53,28 @@ export const colorsMatch = (leaderColor, cardColor) => {
 export const isBlock1Card = (card) =>
   BLOCK1.some(s => (card.cardNumber || '').startsWith(s) || (card.set || '').startsWith(s))
 
+// Fetch all pages from apitcg.com paginated API
 export const fetchAllPages = async (endpoint, onProgress) => {
-  let url = API_BASE + endpoint
+  let page = 1
   let all = []
-  while (url) {
+  let totalPages = 1
+
+  while (page <= totalPages) {
+    const url = `${API_BASE}${endpoint}&page=${page}&limit=100`
     const res = await fetch(url)
     if (!res.ok) break
     const data = await res.json()
-    if (Array.isArray(data)) { all = [...all, ...data]; break }
-    const results = data.results || data.cards || []
+
+    const results = data.data || data.results || []
     all = [...all, ...results]
-    if (onProgress) onProgress(all.length, data.count || null)
-    url = data.next || null
+
+    // apitcg uses totalPages field
+    if (page === 1) {
+      totalPages = data.totalPages || Math.ceil((data.total || results.length) / 100) || 1
+    }
+
+    if (onProgress) onProgress(all.length, data.total || null)
+    page++
   }
   return all
 }

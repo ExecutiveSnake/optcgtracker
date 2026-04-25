@@ -25,22 +25,21 @@ export default function SettingsTab({ onSyncDone }) {
     setSyncing(true); setSyncStatus('Starting...')
     try {
       if (clearFirst) { setSyncStatus('Clearing cache...'); await db.cards.clear(); setCardCount(0) }
-      const eps = ['/api/allSetCards/', '/api/allSTCards/', '/api/allPromoCards/', '/api/allDonCards/']
+      const eps = ['/api/one-piece/cards?']
       let total = 0
       for (const ep of eps) {
         try {
-          const epName = ep.replace('/api/', '').replace('/', '')
-          setSyncStatus(`Fetching ${epName}...`)
+          setSyncStatus('Fetching from apitcg.com...')
           const raw = await fetchAllPages(ep, (loaded, count) => {
-            setSyncStatus(`${epName}: ${loaded}${count ? '/' + count : ''} cards...`)
+            setSyncStatus(`Fetching: ${loaded}${count ? '/' + count : ''} cards...`)
           })
-          console.log(`[OPTCG] ${epName} — ${raw.length} cards, sample:`, raw[0])
+          console.log(`[OPTCG] apitcg sample:`, raw[0])
           const norm = raw.map(normalizeCard)
-          console.log(`[OPTCG] ${epName} normalized sample:`, norm[0])
+          console.log(`[OPTCG] normalized sample:`, norm[0])
           await db.cards.bulkPut(norm)
           total += norm.length
-          setSyncStatus(`Loaded ${total} total so far...`)
-        } catch (e) { console.error('Endpoint error:', ep, e) }
+          setSyncStatus(`Loaded ${total} cards...`)
+        } catch (e) { console.error('Sync error:', e) }
       }
       const actual = await db.cards.count()
       console.log(`[OPTCG] Sync done. Attempted: ${total} | In DB: ${actual}`)
