@@ -1,4 +1,4 @@
-export const API_BASE = 'https://apitcg.com'
+export const API_BASE = 'https://optcgapi.com'
 export const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG']
 export const DECK_TAGS = ['Meta', 'Casual', 'Work In Progress', 'Tournament', 'Retired']
 export const BLOCK1 = ['OP01', 'ST01', 'ST02', 'ST03', 'ST04']
@@ -17,27 +17,25 @@ export const getColorHex = (color) => {
 }
 
 export const normalizeCard = (raw) => {
-  // apitcg.com format: id/code = "OP03-070", family = affiliation, ability = effect
-  const cardNum = (raw.code || raw.id || raw.card_number || raw.cardNumber || '').trim()
-  const setName = raw.set?.name || raw.set_id || raw.set || ''
-  // Extract set ID from card number prefix e.g. "OP03" from "OP03-070"
-  const setId = cardNum.includes('-') ? cardNum.split('-')[0] : setName
+  const cardNum = (raw.card_number || raw.cardNumber || raw.code || raw.id || '').toString().trim()
+  const setId = (raw.set_id || raw.set || (cardNum.includes('-') ? cardNum.split('-')[0] : '')).trim()
+
+  // Build a truly unique ID — card number is the most reliable key
+  const id = cardNum || Math.random().toString(36).slice(2)
 
   return {
-    id: cardNum || Math.random().toString(36).slice(2),
+    id,
     name: raw.name || raw.card_name || '',
     cardNumber: cardNum,
     set: setId,
-    setName: setName,
     color: (raw.color || raw.colors || '').toLowerCase(),
-    type: raw.type || raw.card_type || '',
+    type: raw.card_type || raw.type || '',
     cost: raw.cost != null ? Number(raw.cost) : null,
     power: raw.power != null ? Number(raw.power) : null,
     counter: (raw.counter && raw.counter !== '-') ? raw.counter : null,
-    affiliation: raw.family || raw.attribute || raw.affiliation || raw.group_tag || '',
-    effect: raw.ability || raw.effect || raw.card_effect || '',
-    trigger: raw.trigger || '',
-    imageUrl: raw.images?.large || raw.images?.small || raw.image_url || null,
+    affiliation: raw.attribute || raw.family || raw.affiliation || raw.group_tag || raw.tag || '',
+    effect: raw.effect || raw.ability || raw.card_effect || raw.text || '',
+    imageUrl: raw.image_url || raw.card_image || raw.images?.large || raw.images?.small || null,
     rarity: raw.rarity || '',
     life: raw.life != null ? raw.life : null,
   }
@@ -53,31 +51,39 @@ export const colorsMatch = (leaderColor, cardColor) => {
 export const isBlock1Card = (card) =>
   BLOCK1.some(s => (card.cardNumber || '').startsWith(s) || (card.set || '').startsWith(s))
 
-// Fetch all pages from apitcg.com paginated API
-export const fetchAllPages = async (endpoint, onProgress) => {
-  let page = 1
+// Fetch all pages from a Django REST paginated endpoint
+export const fetchAllPages = async (url, onProgress) => {
+  let nextUrl = url
   let all = []
-  let totalPages = 1
-
-  while (page <= totalPages) {
-    const url = `${API_BASE}${endpoint}&page=${page}&limit=100`
-    const res = await fetch(url)
+  while (nextUrl) {
+    const res = await fetch(nextUrl)
     if (!res.ok) break
     const data = await res.json()
-
-    const results = data.data || data.results || []
-    all = [...all, ...results]
-
-    // apitcg uses totalPages field
-    if (page === 1) {
-      totalPages = data.totalPages || Math.ceil((data.total || results.length) / 100) || 1
+    if (Array.isArray(data)) {
+      all = [...all, ...data]
+      break
     }
-
-    if (onProgress) onProgress(all.length, data.total || null)
-    page++
+    const results = data.results || data.cards || data.data || []
+    all = [...all, ...results]
+    if (onProgress) onProgress(all.length, data.count || data.total || null)
+    nextUrl = data.next || null
   }
   return all
 }
+
+// All endpoints to fetch — bulk endpoints + individual sets for completeness
+export const SYNC_ENDPOINTS = [
+  `${API_BASE}/api/allSetCards/`,
+  `${API_BASE}/api/allSTCards/`,
+  `${API_BASE}/api/allPromoCards/`,
+  `${API_BASE}/api/allDonCards/`,
+  // Individual recent sets in case bulk endpoint misses them
+  `${API_BASE}/api/sets/cards/OP14/`,
+  `${API_BASE}/api/sets/cards/OP13/`,
+  `${API_BASE}/api/sets/cards/OP12/`,
+  `${API_BASE}/api/sets/cards/OP11/`,
+  `${API_BASE}/api/sets/cards/OP15/`,
+]
 
 // Levenshtein distance for fuzzy OCR matching
 export const levenshtein = (a, b) => {

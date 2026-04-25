@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import db from './db'
-import { normalizeCard, fetchAllPages } from './utils'
+import { normalizeCard, fetchAllPages, SYNC_ENDPOINTS } from './utils'
 import { Toasts } from './components/Shared'
 import SearchTab from './components/SearchTab'
 import CatalogTab from './components/CatalogTab'
@@ -33,19 +33,24 @@ export default function App() {
         return
       }
       // Fresh fetch
-      setLoadMsg('Fetching card database from apitcg.com...')
-      const eps = ['/api/one-piece/cards?']
+      setLoadMsg('Fetching card database...')
       let all = []
-      for (const ep of eps) {
+      const seen = new Set()
+      for (const url of SYNC_ENDPOINTS) {
         try {
-          setLoadMsg('Loading One Piece cards...')
-          const raw = await fetchAllPages(ep, (loaded, count) => {
-            setLoadMsg(`Loading: ${loaded}${count ? '/' + count : ''} cards...`)
+          const epName = url.split('/api/')[1]?.replace(/\//g, '') || url
+          setLoadMsg(`Loading ${epName}...`)
+          const raw = await fetchAllPages(url, (loaded, count) => {
+            setLoadMsg(`${epName}: ${loaded}${count ? '/' + count : ''} cards...`)
           })
-          console.log(`[OPTCG] apitcg raw sample:`, raw[0])
-          all = [...all, ...raw.map(normalizeCard)]
-          setLoadMsg(`Loaded ${all.length} cards...`)
-        } catch (e) { console.error('Load error:', ep, e) }
+          console.log(`[OPTCG] ${epName} raw sample:`, raw[0])
+          const norm = raw.map(normalizeCard).filter(c => {
+            if (!c.id || seen.has(c.id)) return false
+            seen.add(c.id); return true
+          })
+          all = [...all, ...norm]
+          setLoadMsg(`Loaded ${all.length} unique cards so far...`)
+        } catch (e) { console.error('Load error:', url, e) }
       }
       if (all.length > 0) {
         await db.cards.bulkPut(all)

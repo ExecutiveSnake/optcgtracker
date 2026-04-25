@@ -36,7 +36,11 @@ export default function SearchTab({ cards }) {
     try {
       const count = await db.cards.count()
       const lq = (query || '').toLowerCase().trim()
-      setDebugInfo(`DB: ${count} cards | Searching: "${lq}"`)
+
+      // Sample first 3 cards to see what's actually stored
+      const sample = await db.cards.limit(3).toArray()
+      const sampleInfo = sample.map(c => `[id:${c.id}|num:${c.cardNumber}|name:${c.name?.slice(0,10)}]`).join(' ')
+      setDebugInfo(`DB: ${count} | Sample: ${sampleInfo} | Query: "${lq}"`)
 
       if (count === 0) {
         setDebugInfo('❌ DB empty — go to Settings → Clear Cache & Re-sync')

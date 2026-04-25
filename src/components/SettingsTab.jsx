@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import db from '../db'
-import { fetchAllPages, normalizeCard, btnPrimary } from '../utils'
+import { fetchAllPages, normalizeCard, btnPrimary, SYNC_ENDPOINTS } from '../utils'
 import { Modal, toast } from './Shared'
 
 export default function SettingsTab({ onSyncDone }) {
@@ -25,21 +25,25 @@ export default function SettingsTab({ onSyncDone }) {
     setSyncing(true); setSyncStatus('Starting...')
     try {
       if (clearFirst) { setSyncStatus('Clearing cache...'); await db.cards.clear(); setCardCount(0) }
-      const eps = ['/api/one-piece/cards?']
       let total = 0
-      for (const ep of eps) {
+      const seen = new Set()
+      for (const url of SYNC_ENDPOINTS) {
         try {
-          setSyncStatus('Fetching from apitcg.com...')
-          const raw = await fetchAllPages(ep, (loaded, count) => {
-            setSyncStatus(`Fetching: ${loaded}${count ? '/' + count : ''} cards...`)
+          const epName = url.split('/api/')[1]?.replace(/\//g, '') || url
+          setSyncStatus(`Fetching ${epName}...`)
+          const raw = await fetchAllPages(url, (loaded, count) => {
+            setSyncStatus(`${epName}: ${loaded}${count ? '/' + count : ''} cards...`)
           })
-          console.log(`[OPTCG] apitcg sample:`, raw[0])
-          const norm = raw.map(normalizeCard)
-          console.log(`[OPTCG] normalized sample:`, norm[0])
+          console.log(`[OPTCG] ${epName} — ${raw.length} cards, sample:`, raw[0])
+          const norm = raw.map(normalizeCard).filter(c => {
+            if (!c.id || seen.has(c.id)) return false
+            seen.add(c.id); return true
+          })
+          console.log(`[OPTCG] ${epName} normalized sample:`, norm[0])
           await db.cards.bulkPut(norm)
           total += norm.length
-          setSyncStatus(`Loaded ${total} cards...`)
-        } catch (e) { console.error('Sync error:', e) }
+          setSyncStatus(`Loaded ${total} unique cards so far...`)
+        } catch (e) { console.error('Sync error:', url, e) }
       }
       const actual = await db.cards.count()
       console.log(`[OPTCG] Sync done. Attempted: ${total} | In DB: ${actual}`)
