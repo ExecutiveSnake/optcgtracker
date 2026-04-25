@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import db from './db'
-import { normalizeCard, fetchAllPages, SYNC_ENDPOINTS } from './utils'
+import { normalizeCard, fetchAllPages, buildSyncEndpoints } from './utils'
 import { Toasts } from './components/Shared'
 import SearchTab from './components/SearchTab'
 import CatalogTab from './components/CatalogTab'
@@ -34,9 +34,10 @@ export default function App() {
       }
       // Fresh fetch
       setLoadMsg('Fetching card database...')
+      const endpoints = await buildSyncEndpoints()
       let all = []
       const seen = new Set()
-      for (const url of SYNC_ENDPOINTS) {
+      for (const url of endpoints) {
         try {
           const epName = url.split('/api/')[1]?.replace(/\//g, '') || url
           setLoadMsg(`Loading ${epName}...`)

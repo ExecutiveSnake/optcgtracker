@@ -51,6 +51,35 @@ export const colorsMatch = (leaderColor, cardColor) => {
 export const isBlock1Card = (card) =>
   BLOCK1.some(s => (card.cardNumber || '').startsWith(s) || (card.set || '').startsWith(s))
 
+// Dynamically discover all set endpoints, falling back to a known list
+export const buildSyncEndpoints = async () => {
+  const base = [
+    `${API_BASE}/api/allSTCards/`,
+    `${API_BASE}/api/allPromoCards/`,
+    `${API_BASE}/api/allDonCards/`,
+  ]
+  try {
+    const res = await fetch(`${API_BASE}/api/sets/`)
+    if (!res.ok) throw new Error('sets list failed')
+    const data = await res.json()
+    const sets = Array.isArray(data) ? data : (data.results || data.sets || [])
+    if (!sets.length) throw new Error('empty sets list')
+    const setEndpoints = sets.map(s => {
+      const id = typeof s === 'string' ? s : (s.set_id || s.id || s.code || s.name || '')
+      return id ? `${API_BASE}/api/sets/cards/${id}/` : null
+    }).filter(Boolean)
+    return [...base, ...setEndpoints]
+  } catch {
+    // Fall back to comprehensive hardcoded list
+    const knownSets = [
+      'OP01','OP02','OP03','OP04','OP05','OP06','OP07','OP08','OP09','OP10',
+      'OP11','OP12','OP13','OP14','OP15','OP16','OP17',
+      'EB01','EB02','PRB01',
+    ]
+    return [...base, ...knownSets.map(id => `${API_BASE}/api/sets/cards/${id}/`)]
+  }
+}
+
 // Fetch all pages from a Django REST paginated endpoint
 export const fetchAllPages = async (url, onProgress) => {
   let nextUrl = url
@@ -71,19 +100,6 @@ export const fetchAllPages = async (url, onProgress) => {
   return all
 }
 
-// All endpoints to fetch — bulk endpoints + individual sets for completeness
-export const SYNC_ENDPOINTS = [
-  `${API_BASE}/api/allSetCards/`,
-  `${API_BASE}/api/allSTCards/`,
-  `${API_BASE}/api/allPromoCards/`,
-  `${API_BASE}/api/allDonCards/`,
-  // Individual recent sets in case bulk endpoint misses them
-  `${API_BASE}/api/sets/cards/OP14/`,
-  `${API_BASE}/api/sets/cards/OP13/`,
-  `${API_BASE}/api/sets/cards/OP12/`,
-  `${API_BASE}/api/sets/cards/OP11/`,
-  `${API_BASE}/api/sets/cards/OP15/`,
-]
 
 // Levenshtein distance for fuzzy OCR matching
 export const levenshtein = (a, b) => {

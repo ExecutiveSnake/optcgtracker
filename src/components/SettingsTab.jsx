@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import db from '../db'
-import { fetchAllPages, normalizeCard, btnPrimary, SYNC_ENDPOINTS } from '../utils'
+import { fetchAllPages, normalizeCard, btnPrimary, buildSyncEndpoints } from '../utils'
 import { Modal, toast } from './Shared'
 
 export default function SettingsTab({ onSyncDone }) {
@@ -25,9 +25,11 @@ export default function SettingsTab({ onSyncDone }) {
     setSyncing(true); setSyncStatus('Starting...')
     try {
       if (clearFirst) { setSyncStatus('Clearing cache...'); await db.cards.clear(); setCardCount(0) }
+      setSyncStatus('Discovering sets...')
+      const endpoints = await buildSyncEndpoints()
       let total = 0
       const seen = new Set()
-      for (const url of SYNC_ENDPOINTS) {
+      for (const url of endpoints) {
         try {
           const epName = url.split('/api/')[1]?.replace(/\//g, '') || url
           setSyncStatus(`Fetching ${epName}...`)
